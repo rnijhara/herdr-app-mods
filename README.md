@@ -80,6 +80,8 @@ Each template tells the worker to stay in scope and report
 with `hc send` (RESULT: or BLOCKED:). The report arrives as the lead's next input,
 so the lead never polls.
 
+- `astra` and `sol` can use the computer (see the screen, click, type) and generate
+  images, so a lead can hand them manual UI testing.
 - Codex runs with `--no-daemon`, as herdr-core requires. To let Codex report without
   a permission prompt, add `prefix_rule(pattern=["hc", "send"], decision="allow")` to
   `~/.codex/rules/default.rules`.
