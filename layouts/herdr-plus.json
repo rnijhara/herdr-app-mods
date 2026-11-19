@@ -258,13 +258,13 @@
               }
             },
             {
-              "id": "open-vscode",
+              "id": "open-in",
               "type": "block",
               "size": {
-                "px": 34
+                "px": 52
               },
               "content": {
-                "mod": "open-vscode"
+                "mod": "open-in"
               }
             },
             {
