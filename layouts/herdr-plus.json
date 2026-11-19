@@ -258,6 +258,16 @@
               }
             },
             {
+              "id": "open-vscode",
+              "type": "block",
+              "size": {
+                "px": 34
+              },
+              "content": {
+                "mod": "open-vscode"
+              }
+            },
+            {
               "id": "keep-awake",
               "type": "block",
               "size": {

@@ -29,6 +29,7 @@ first: Herdr docks a folder it sees without one into the shown layout).
 | `machines` | CPU sparkline and memory bar for this computer and every `hc machine ls` machine, sampled every 3 s (`top`/`vm_stat` on macOS, `/proc` on Linux). A sidebar list, or with `"compact": true` one status-bar line. With `"show": "several"` or `"one"` a copy appears only while there is more than one machine, or only one, so a layout can hold both and show the right one. |
 | `usage-limits` | Status bar: Claude Code and Codex plan limits (weekly, model-scoped, and the 5-hour window once it is 50% used). Uses each tool's own sign-in (keychain, `~/.codex/auth.json`) against its own provider's undocumented usage endpoint. |
 | `keep-awake` | Status-bar cup: keeps the Mac and its display awake with `caffeinate -di -w <Herdr pid>` in an hc terminal named `keep-awake`, so the hold ends when Herdr quits. |
+| `open-vscode` | Status-bar `</>`: opens the focused terminal's folder in VS Code (the space's folder when no terminal has focus). Runs `code`, or on macOS opens the app directly when `code` isn't on PATH. Spaces on another machine are skipped. Bind a key with `"cmd-shift-e": "open-vscode.open"` in `keys.json` `global`. |
 | `cite` | Quote-reply across agents. Hold ⇧⌘ and drag over any terminal's text: a popup takes an optional note and the quote joins a numbered list in the **Citations** panel beside Files and Changes. Click a quote to jump back to it; **Send to** pastes the list into an agent's input without pressing Enter. **⌘⇧'** pastes into the focused terminal (needs `"cmd-shift-'": "cite.paste"` in `keys.json` `global`). The modifier is read by `modstate.c`, built with `cc` on first start (no permissions needed). Relies on copy-on-select, Herdr's default. |
 | `tab-namer` | Names unnamed tabs: the agent's title, else the program and folder. Tabs you name are left alone; renaming one to "" hands it back. |
 | `mod-patches` | Keeps patched copies of three of Herdr's own mods current (below). |
@@ -54,7 +55,7 @@ The patches are `PATCHES` in `mods/mod-patches/main.js`. Change Herdr's mods onl
 Herdr's `main` layout plus:
 
 - **Machines**: in the sidebar when you have several machines, as one status-bar line when this computer is the only one. Each copy sizes its own block, down to 0 px when it shouldn't show.
-- **Status bar**: usage limits and the keep-awake cup.
+- **Status bar**: usage limits, the keep-awake cup and the VS Code button.
 - **Citations** in the right panel's stack, beside Files and Changes.
 - Three 0 px helper blocks: `tab-namer`, `mod-patches` and `cite-watch`.
 
@@ -106,5 +107,5 @@ yourself when you want it.
 
 ## License
 
-[Apache-2.0](LICENSE). The cup and quote icons come from
+[Apache-2.0](LICENSE). The cup, quote and code icons come from
 [Lucide](https://lucide.dev) (ISC); see [NOTICE](NOTICE).
