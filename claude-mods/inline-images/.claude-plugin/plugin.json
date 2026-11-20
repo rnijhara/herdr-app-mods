@@ -1,0 +1,1 @@
+{ "name": "inline-images", "version": "0.1.0", "description": "Shows images Claude reads inline under the Read row, in terminals with Kitty graphics (Ghostty, kitty, Herdr)." }

@@ -1,0 +1,11 @@
+{
+  "name": "herdr-app-mods",
+  "owner": { "name": "rnijhara" },
+  "plugins": [
+    {
+      "name": "inline-images",
+      "source": "./claude-mods/inline-images",
+      "description": "Shows images Claude reads inline under the Read row, in terminals with Kitty graphics (Herdr, Ghostty, kitty)."
+    }
+  ]
+}

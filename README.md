@@ -96,6 +96,23 @@ points agents at `hc --skill` and `herdr-app --skill` and covers delegating to t
 templates; `orchestrate` leads a task by delegating to `opus`, `astra` and `sol`; name `neon`
 yourself when you want it.
 
+## Claude Code mods
+
+`claude-mods/` holds mods for Claude Code itself (not Herdr window mods; `install.sh`
+leaves them alone). The repo is a Claude Code plugin marketplace, so each installs
+with one line at a Claude Code prompt:
+
+```
+/plugin install inline-images --marketplace rnijhara/herdr-app-mods
+```
+
+| Mod | What it does |
+|---|---|
+| `inline-images` | Draws each image Claude reads (PNG, JPEG, WebP, GIF) as a picture, up to 60×24 cells, under its Read row, and under the folded "Read N files" line too. Needs a terminal with Kitty graphics: Herdr, Ghostty or kitty; elsewhere it shows `[image: <path>]`. Herdr draws image bytes but not image files, so non-PNG images are converted with macOS `sips` (cached in `/tmp/claude-inline-images/`) and sent as base64. macOS only for non-PNG images. |
+
+To work on one, run `claude --plugin-dir claude-mods/<mod>` and check it with
+`claude plugin validate claude-mods/<mod>`.
+
 ## Changing things
 
 - Edit the installed copies in `~/.config/herdr-app` (Herdr reloads mods live), run
