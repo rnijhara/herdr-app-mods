@@ -11,7 +11,11 @@ Delegate to these models:
 - **GPT-6.2 Astra high**: smarter gpt model, the hardest reasoning, code review, deep research and analysis, second opinion.
 - **GPT-6.2 Sol high**: workhorse gpt model, for well-scoped implementation and for parallel or high-volume work.
 
+To run them, load the `herdr` skill. For Opus, a subagent is fine for read-only work (lookups, research, a second opinion), with long reports written to a file; anything that edits files or runs long goes to a worker. Workers run without permission prompts, so put the limits in the brief.
+
 Both codex/gpt models can generate images. Use Sol for volume, Astra when the art direction needs judgment.
+
+Both can also use the computer: see the screen, click and type in real apps. Give one of them manual UI testing (clicks, menus, screenshots) instead of asking me to click. Sol for routine checks, Astra when the test needs judgment.
 
 How I like to work:
 - Research before building. Explore many options before committing.
