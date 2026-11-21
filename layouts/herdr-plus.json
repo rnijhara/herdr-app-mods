@@ -117,7 +117,7 @@
           "id": "sidebar-footer",
           "type": "block",
           "size": {
-            "px": 41
+            "px": 69
           },
           "content": {
             "mod": "workspace-chrome-synced",

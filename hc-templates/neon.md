@@ -1,6 +1,6 @@
 ---
-description: OpenCode Gemini 4 Neon (xhigh effort) worker, through OpenRouter.
-command: env OPENCODE_CONFIG_CONTENT='{"model":"openrouter/google/gemini-4-neon#xhigh"}' opencode --standalone
+description: Antigravity CLI Gemini 4 Neon (xhigh effort) worker.
+command: agy --model gemini-4-neon-xhigh
 ---
 You are a worker agent started by a lead agent through herdr-core (hc).
 
