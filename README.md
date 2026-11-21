@@ -31,8 +31,21 @@ first: Herdr docks a folder it sees without one into the shown layout).
 | `keep-awake` | Status-bar cup: keeps the Mac and its display awake with `caffeinate -di -w <Herdr pid>` in an hc terminal named `keep-awake`, so the hold ends when Herdr quits. |
 | `open-in` | Status-bar "Open in" split button: the left part opens the focused terminal's folder (the space's folder when no terminal has focus) in the default editor and shows its icon; the chevron lists the installed editors (Cursor, VS Code, VS Code Insiders, VSCodium, Zed, Trae, Kiro, Antigravity, JetBrains IDEs), then Finder, and the one you pick becomes the default. macOS only: an editor counts as installed when its command is on PATH or its CLI is inside its app in `/Applications` or `~/Applications`. Icons come from the installed apps, cached in the mod's hidden `.icons/`. Spaces on another machine are skipped. Keys in `keys.json` `global`: `"cmd-shift-e": "open-in.open"` (default editor), `open-in.menu` (the picker). |
 | `cite` | Quote-reply across agents. Hold ⇧⌘ and drag over any terminal's text: a popup takes an optional note and the quote joins a numbered list in the **Citations** panel beside Files and Changes. Click a quote to jump back to it; **Send to** pastes the list into an agent's input without pressing Enter. **⌘⇧'** pastes into the focused terminal (needs `"cmd-shift-'": "cite.paste"` in `keys.json` `global`). The modifier is read by `modstate.c`, built with `cc` on first start (no permissions needed). Relies on copy-on-select, Herdr's default. |
-| `tab-namer` | Names unnamed tabs: the agent's title, else the program and folder. Tabs you name are left alone; renaming one to "" hands it back. |
+| `tab-namer` | Names unnamed tabs: the agent's title, else the program and folder. Tabs you name are left alone; renaming one to "" hands it back. For Antigravity CLI (`agy`), configure its `title` setting (below). |
 | `mod-patches` | Keeps patched copies of three of Herdr's own mods current (below). |
+
+### tab-namer with Antigravity CLI (`agy`)
+
+Antigravity CLI does not set a terminal window title unless a `title` command is configured, so without one Herdr only sees the shell command (`agy`, `agy -c`) and `tab-namer` falls back to `Antigravity · <folder>`. To let `tab-namer` use `agy`'s conversation titles, add this to `~/.gemini/antigravity-cli/settings.json` (requires `jq`):
+
+```json
+"title": {
+  "type": "command",
+  "command": "jq -r 'if (.conversation_title // \"\") != \"\" then .conversation_title else \"Antigravity\" end'"
+}
+```
+
+Returning `"Antigravity"` when `conversation_title` is empty resets the title on `/clear`, and `tab-namer` treats it as generic so fresh tabs show `Antigravity · <folder>` until a conversation title arrives.
 
 ### mod-patches
 
