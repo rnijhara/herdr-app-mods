@@ -5,7 +5,9 @@
 // to its own provider: Claude Code's from the login keychain to api.anthropic.com,
 // Codex's from ~/.codex/auth.json to chatgpt.com, and Antigravity's through `agy -p /usage`.
 // Tokens are never stored.
-// If a provider is signed out or an endpoint changes, its item shows "unavailable" with the reason on hover.
+// Providers that aren't installed, aren't signed in, or have no quota data are hidden
+// (if none are available, the block shrinks to 0 px). Transient errors on a configured
+// provider show "unavailable" with the reason on hover.
 import { View, div, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { checking, exec, theme, home, readTextFile, run } from "herdr";
@@ -19,6 +21,9 @@ const PAD = 8; // px each side of the items
 const CLAUDE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CODEX_URL = "https://chatgpt.com/backend-api/wham/usage";
 
+// Marks a provider as absent (not installed, not signed in, or no quota plan) so it is hidden.
+const absent = (msg) => Object.assign(new Error(msg), { absent: true });
+
 // "5d 22h", "2h 10m", "14m".
 function left(resetMs) {
   const s = Math.max(0, Math.round((resetMs - Date.now()) / 1000));
@@ -29,9 +34,9 @@ function left(resetMs) {
 async function claude() {
   const user = home().split("/").pop();
   const r = await exec("security", ["find-generic-password", "-s", "Claude Code-credentials", "-a", user, "-w"], { timeout: 10000 });
-  if (r.code !== 0) throw new Error("no Claude Code sign-in in the keychain");
+  if (r.code !== 0) throw absent("no Claude Code sign-in in the keychain");
   const token = JSON.parse(r.stdout)?.claudeAiOauth?.accessToken;
-  if (!token) throw new Error("no Claude Code sign-in in the keychain");
+  if (!token) throw absent("no Claude Code sign-in in the keychain");
   const res = await fetch(CLAUDE_URL, {
     headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20", "User-Agent": "claude-code/2.1.0" },
   });
@@ -47,9 +52,11 @@ async function claude() {
 }
 
 async function codex() {
-  const auth = JSON.parse(await readTextFile(`${home()}/.codex/auth.json`));
+  const raw = await readTextFile(`${home()}/.codex/auth.json`);
+  if (raw == null) throw absent("no Codex sign-in in ~/.codex/auth.json");
+  const auth = JSON.parse(raw);
   const token = auth?.tokens?.access_token;
-  if (!token) throw new Error("no Codex sign-in in ~/.codex/auth.json");
+  if (!token) throw absent("no Codex sign-in in ~/.codex/auth.json");
   const headers = { Authorization: `Bearer ${token}`, "User-Agent": "codex-cli", "OpenAI-Beta": "codex-1", originator: "Codex Desktop" };
   if (auth.tokens.account_id) headers["ChatGPT-Account-Id"] = auth.tokens.account_id;
   const res = await fetch(CODEX_URL, { headers });
@@ -93,7 +100,7 @@ function parseAgyUsage(stdout) {
     throw new Error(body?.error || "agy returned no usage data");
   }
   const groups = body?.command?.data?.groups ?? [];
-  if (!groups.length) throw new Error("no Antigravity quota data");
+  if (!groups.length) throw absent("no Antigravity quota data");
   const primary = groups.find((g) => /gemini/i.test(g.name ?? "") || (g.buckets ?? []).some((b) => /^gemini/i.test(b.id ?? ""))) ?? groups[0];
   const multi = groups.length > 1;
   const shortName = (name) => (/claude/i.test(name) && /gpt/i.test(name) ? "Claude" : name.replace(/\s+models?$/i, ""));
@@ -116,14 +123,14 @@ function parseAgyUsage(stdout) {
       }
     }
   }
-  if (!limits.length) throw new Error("no Antigravity quota buckets");
+  if (!limits.length) throw absent("no Antigravity quota buckets");
   return limits;
 }
 
 async function antigravity() {
   const r = await exec("sh", ["-c", AGY_SCRIPT], { timeout: 35000 });
-  if (r.code === 127) throw new Error("agy CLI not found");
-  if (r.code === 42) throw new Error("signed out: run agy once to sign in");
+  if (r.code === 127) throw absent("agy CLI not found");
+  if (r.code === 42) throw absent("signed out: run agy once to sign in");
   if (r.code !== 0) {
     const msg = r.stderr.trim().split("\n").find(Boolean);
     throw new Error(msg ? `agy failed: ${msg.slice(0, 120)}` : `agy exited with ${r.code}`);
@@ -139,12 +146,35 @@ const PROVIDERS = [
 
 export default class UsageLimits extends View {
   init(_props, cx) {
-    this.state = {}; // id -> { limits, error, at }
+    this.state = {}; // id -> { limits, error, absent, at }
     this.loading = new Set();
     if (checking()) return;
     this.refresh(cx);
     cx.timer.every(EVERY, (cx) => this.refresh(cx));
     cx.timer.every(60 * 1000, (cx) => cx.notify()); // reset countdowns
+  }
+
+  visibleProviders() {
+    return PROVIDERS.filter((p) => {
+      const s = this.state[p.id];
+      return s && !s.absent;
+    });
+  }
+
+  // A layout block can't size to its content, so the block is resized to fit
+  // the visible items whenever their width changes (0 px when none are available).
+  // Compared with the block's actual width, so a reset (a layout rebuild) is fixed too.
+  fit() {
+    if (this.block == null) return;
+    const visible = this.visibleProviders();
+    if (!visible.length) {
+      if (!PROVIDERS.every((p) => this.state[p.id])) return;
+      if (this.block > 1 && this.asked !== 0) { this.asked = 0; run("layout.resize", { id: BLOCK, px: 0 }); }
+      return;
+    }
+    if (this.items == null) return;
+    const want = Math.ceil(this.items) + 2 * PAD;
+    if (Math.abs(want - this.block) > 1 && want !== this.asked) { this.asked = want; run("layout.resize", { id: BLOCK, px: want }); }
   }
 
   refresh(cx) {
@@ -153,12 +183,14 @@ export default class UsageLimits extends View {
       this.loading.add(p.id);
       cx.spawn(async (cx) => {
         try {
-          this.state[p.id] = { limits: await p.load(), error: null, at: Date.now() };
+          this.state[p.id] = { limits: await p.load(), error: null, absent: false, at: Date.now() };
         } catch (e) {
-          this.state[p.id] = { ...(this.state[p.id] ?? {}), error: String(e?.message ?? e), at: Date.now() };
+          const prev = this.state[p.id];
+          this.state[p.id] = { ...(prev ?? {}), error: String(e?.message ?? e), absent: Boolean(e?.absent) && !prev?.limits, at: Date.now() };
         } finally {
           this.loading.delete(p.id);
         }
+        this.fit();
         cx.notify();
       });
     }
@@ -166,6 +198,7 @@ export default class UsageLimits extends View {
 
   render() {
     const t = theme();
+    const visible = this.visibleProviders();
     const tone = (v) => (v >= WARN ? t.blocked : t.muted);
     const bar = (v) =>
       div().w(40).h(4).flex_none().rounded(2).bg(t.border)
@@ -175,7 +208,6 @@ export default class UsageLimits extends View {
       const base = h_flex().id(`usage-${p.id}`).gap(6).items_center().flex_none().rounded(5).px(4)
         .hover((st) => st.bg(t.hover)).on_click((_e, cx) => this.refresh(cx))
         .child(image(p.icon).size(14).flex_none());
-      if (!s) return base.child(div().text_color(t.dim).child("…"));
       if (!s.limits) return base.tooltip(`${p.name}: ${s.error}`).child(div().text_color(t.dim).child("unavailable"));
       const week = s.limits.find((l) => l.kind === "weekly_all");
       const session = s.limits.find((l) => l.kind === "session");
@@ -199,19 +231,11 @@ export default class UsageLimits extends View {
           div().text_color(tone(part.v)).child(part.text),
         ]));
     };
-    // A layout block can't size to its content, so the block is resized to fit
-    // the items whenever their width changes (no gap before them, no clipping).
-    // Compared with the block's actual width, so a reset (a layout rebuild) is fixed too.
-    const fit = () => {
-      if (this.items == null || this.block == null) return;
-      const want = Math.ceil(this.items) + 2 * PAD;
-      if (Math.abs(want - this.block) > 1 && want !== this.asked) { this.asked = want; run("layout.resize", { id: BLOCK, px: want }); }
-    };
     return h_flex().id("root").size_full().px(PAD).items_center().justify_end().bg(t.chrome).border_t(1).border_color(t.border)
       .text_size(11.8).text_color(t.muted)
-      .on_size_change((size, _cx) => { this.block = size.width; this.asked = null; fit(); })
+      .on_size_change((size, _cx) => { this.block = size.width; this.asked = null; this.fit(); })
       .child(h_flex().id("items").flex_none().gap(14).items_center()
-        .on_size_change((size, _cx) => { this.items = size.width; fit(); })
-        .children(PROVIDERS.map(item)));
+        .on_size_change((size, _cx) => { this.items = size.width; this.fit(); })
+        .children(visible.map(item)));
   }
 }
