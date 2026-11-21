@@ -1,14 +1,14 @@
-// Claude Code and Codex plan limits in the status bar:
-// "13% used 5d 22h · 21% used Fable" and "12% used 2d 13h".
+// Claude Code, Codex and Antigravity (Google AI) plan limits in the status bar:
+// "13% used 5d 22h · 21% used Fable", "12% used 2d 13h", and "2% used 6d 23h · 1% used Claude/GPT".
 //
 // Each tool's own sign-in on this computer is used, and each token goes only
 // to its own provider: Claude Code's from the login keychain to api.anthropic.com,
-// Codex's from ~/.codex/auth.json to chatgpt.com. Tokens are never stored.
-// Both endpoints are the ones the tools' usage pages use, not documented APIs:
-// if one changes, its item shows "unavailable" with the reason on hover.
+// Codex's from ~/.codex/auth.json to chatgpt.com, and Antigravity's through `agy -p /usage`.
+// Tokens are never stored.
+// If a provider is signed out or an endpoint changes, its item shows "unavailable" with the reason on hover.
 import { View, div, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { exec, theme, home, readTextFile, run } from "herdr";
+import { checking, exec, theme, home, readTextFile, run } from "herdr";
 
 const EVERY = 5 * 60 * 1000; // ms between refreshes (click an item to refresh now)
 const WARN = 80; // percent at which an item turns to the "blocked" color
@@ -61,14 +61,87 @@ async function codex() {
   });
 }
 
+// Runs `agy -p /usage --output-format json` in a private temp dir with a failing `open`/`xdg-open`
+// shim so a signed-out CLI can't pop open a browser tab (and stops immediately if it tries),
+// and with auto-update disabled so passive refreshes don't trigger CLI updates.
+const AGY_SCRIPT = [
+  'bin=$(command -v agy 2>/dev/null)',
+  'if [ -z "$bin" ]; then for p in /opt/homebrew/bin/agy /usr/local/bin/agy "$HOME/.local/bin/agy"; do [ -x "$p" ] && { bin=$p; break; }; done; fi',
+  '[ -n "$bin" ] || exit 127',
+  'd=$(mktemp -d) || exit 1',
+  'trap \'[ -n "${pid:-}" ] && kill -TERM "$pid" 2>/dev/null; rm -rf "$d"\' EXIT INT TERM',
+  'printf \'#!/bin/sh\\n: > "%s/auth"\\n[ -f "%s/pid" ] && kill -TERM $(cat "%s/pid") 2>/dev/null\\nexit 1\\n\' "$d" "$d" "$d" > "$d/open"',
+  'chmod +x "$d/open" && ln -s "$d/open" "$d/xdg-open"',
+  'cd "$d"',
+  'AGY_CLI_DISABLE_AUTO_UPDATE=true BROWSER="$d/open" PATH="$d:$PATH" "$bin" -p /usage --output-format json < /dev/null > "$d/out" 2> "$d/err" &',
+  'pid=$!; echo "$pid" > "$d/pid"; wait "$pid"; rc=$?',
+  'if [ -f "$d/auth" ] || grep -qi "Authentication required" "$d/out" "$d/err" 2>/dev/null; then exit 42; fi',
+  'cat "$d/out"; [ "$rc" -eq 0 ] || cat "$d/err" >&2; exit "$rc"',
+].join("\n");
+
+function parseAgyUsage(stdout) {
+  const text = stdout.trim();
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    const line = text.split("\n").reverse().find((l) => l.trim().startsWith("{"));
+    if (!line) throw new Error("unexpected output from agy");
+    body = JSON.parse(line);
+  }
+  if (body?.status !== "SUCCESS" || body?.command?.name !== "usage") {
+    throw new Error(body?.error || "agy returned no usage data");
+  }
+  const groups = body?.command?.data?.groups ?? [];
+  if (!groups.length) throw new Error("no Antigravity quota data");
+  const primary = groups.find((g) => /gemini/i.test(g.name ?? "") || (g.buckets ?? []).some((b) => /^gemini/i.test(b.id ?? ""))) ?? groups[0];
+  const multi = groups.length > 1;
+  const shortName = (name) => (/claude/i.test(name) && /gpt/i.test(name) ? "Claude/GPT" : name.replace(/\s+models?$/i, ""));
+  const limits = [];
+  for (const g of groups) {
+    const isPrimary = g === primary;
+    const prefix = isPrimary ? (multi ? "Gemini " : "") : shortName(g.name ?? "other");
+    for (const b of g.buckets ?? []) {
+      if (typeof b.remaining_fraction !== "number") continue;
+      const weekly = b.window === "weekly" || /(?:^|-)weekly$/i.test(b.id ?? "");
+      const fiveHour = b.window === "5h" || /(?:^|-)5h$/i.test(b.id ?? "");
+      if (!weekly && !fiveHour) continue;
+      const percent = Math.max(0, Math.min(100, Math.round((1 - b.remaining_fraction) * 100)));
+      const parsed = b.reset_time ? Date.parse(b.reset_time) : NaN;
+      const reset = Number.isFinite(parsed) ? parsed : null;
+      if (isPrimary) {
+        limits.push({ label: weekly ? `${prefix}week` : `${prefix}5h`, kind: weekly ? "weekly_all" : "session", percent, reset });
+      } else {
+        limits.push({ label: weekly ? prefix : `${prefix} 5h`, kind: weekly ? "weekly_scoped" : "session_scoped", percent, reset });
+      }
+    }
+  }
+  if (!limits.length) throw new Error("no Antigravity quota buckets");
+  return limits;
+}
+
+async function antigravity() {
+  const r = await exec("sh", ["-c", AGY_SCRIPT], { timeout: 35000 });
+  if (r.code === 127) throw new Error("agy CLI not found");
+  if (r.code === 42) throw new Error("signed out: run agy once to sign in");
+  if (r.code !== 0) {
+    const msg = r.stderr.trim().split("\n").find(Boolean);
+    throw new Error(msg ? `agy failed: ${msg.slice(0, 120)}` : `agy exited with ${r.code}`);
+  }
+  return parseAgyUsage(r.stdout);
+}
+
 const PROVIDERS = [
   { id: "claude", name: "Claude Code", icon: "icons/claude.svg", load: claude },
   { id: "codex", name: "Codex", icon: "icons/codex.svg", load: codex },
+  { id: "antigravity", name: "Antigravity", icon: "icons/antigravity.svg", load: antigravity },
 ];
 
 export default class UsageLimits extends View {
   init(_props, cx) {
     this.state = {}; // id -> { limits, error, at }
+    this.loading = new Set();
+    if (checking()) return;
     this.refresh(cx);
     cx.timer.every(EVERY, (cx) => this.refresh(cx));
     cx.timer.every(60 * 1000, (cx) => cx.notify()); // reset countdowns
@@ -76,11 +149,15 @@ export default class UsageLimits extends View {
 
   refresh(cx) {
     for (const p of PROVIDERS) {
+      if (this.loading.has(p.id)) continue;
+      this.loading.add(p.id);
       cx.spawn(async (cx) => {
         try {
           this.state[p.id] = { limits: await p.load(), error: null, at: Date.now() };
         } catch (e) {
           this.state[p.id] = { ...(this.state[p.id] ?? {}), error: String(e?.message ?? e), at: Date.now() };
+        } finally {
+          this.loading.delete(p.id);
         }
         cx.notify();
       });
@@ -103,11 +180,13 @@ export default class UsageLimits extends View {
       const week = s.limits.find((l) => l.kind === "weekly_all");
       const session = s.limits.find((l) => l.kind === "session");
       const scoped = s.limits.filter((l) => l.kind === "weekly_scoped" && l.percent > 0);
+      const scopedSessions = s.limits.filter((l) => l.kind === "session_scoped" && l.percent >= SHOW_SESSION_AT);
       const lead = week ?? session;
       const parts = [];
       if (session && session !== lead && session.percent >= SHOW_SESSION_AT) parts.push({ text: `5h ${session.percent}%`, v: session.percent });
       if (lead) parts.push({ text: `${lead.percent}% used${lead.reset ? ` ${left(lead.reset)}` : ""}`, v: lead.percent });
       for (const l of scoped) parts.push({ text: `${l.percent}% used ${l.label}`, v: l.percent });
+      for (const l of scopedSessions) parts.push({ text: `${l.label} ${l.percent}%`, v: l.percent });
       const tip = [
         `${p.name}${s.error ? ` (last refresh failed: ${s.error})` : ""}`,
         ...s.limits.map((l) => `${l.label}: ${l.percent}% used${l.reset ? `, resets in ${left(l.reset)}` : ""}`),
