@@ -36,16 +36,18 @@ first: Herdr docks a folder it sees without one into the shown layout).
 
 ### tab-namer with Antigravity CLI (`agy`)
 
-Antigravity CLI does not set a terminal window title unless a `title` command is configured, so without one Herdr only sees the shell command (`agy`, `agy -c`) and `tab-namer` falls back to `Antigravity · <folder>`. To let `tab-namer` use `agy`'s conversation titles, add this to `~/.gemini/antigravity-cli/settings.json` (requires `jq`):
+Antigravity CLI does not set a terminal window title unless a `title` command is configured, so without one Herdr only sees the shell command (`agy`, `agy -c`) and `tab-namer` falls back to `Antigravity · <folder>`. Also, `agy` currently omits `conversation_title` from its `title` JSON payload on newly created conversations (populating it only on resumed ones), so `mods/tab-namer/agy-title.sh` falls back to looking up `conversation_id` in `~/.gemini/antigravity-cli/conversation_summaries.db` (requires `jq` and `sqlite3`).
+
+Add this to `~/.gemini/antigravity-cli/settings.json`:
 
 ```json
 "title": {
   "type": "command",
-  "command": "jq -r 'if (.conversation_title // \"\") != \"\" then .conversation_title else \"Antigravity\" end'"
+  "command": "~/.config/herdr-app/mods/tab-namer/agy-title.sh"
 }
 ```
 
-Returning `"Antigravity"` when `conversation_title` is empty resets the title on `/clear`, and `tab-namer` treats it as generic so fresh tabs show `Antigravity · <folder>` until a conversation title arrives.
+Returning `"Antigravity"` when no title exists yet resets the title on `/clear`, and `tab-namer` treats it as generic so fresh tabs show `Antigravity · <folder>` until a conversation title arrives.
 
 ### mod-patches
 
