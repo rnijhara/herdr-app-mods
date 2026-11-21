@@ -1,5 +1,5 @@
 // Claude Code, Codex and Antigravity (Google AI) plan limits in the status bar:
-// "13% used 5d 22h · 21% used Fable", "12% used 2d 13h", and "2% used 6d 23h · 1% used Claude/GPT".
+// "13% used 5d 22h · 21% used Fable", "12% used 2d 13h", and "2% used 6d 23h · 1% used Claude".
 //
 // Each tool's own sign-in on this computer is used, and each token goes only
 // to its own provider: Claude Code's from the login keychain to api.anthropic.com,
@@ -96,7 +96,7 @@ function parseAgyUsage(stdout) {
   if (!groups.length) throw new Error("no Antigravity quota data");
   const primary = groups.find((g) => /gemini/i.test(g.name ?? "") || (g.buckets ?? []).some((b) => /^gemini/i.test(b.id ?? ""))) ?? groups[0];
   const multi = groups.length > 1;
-  const shortName = (name) => (/claude/i.test(name) && /gpt/i.test(name) ? "Claude/GPT" : name.replace(/\s+models?$/i, ""));
+  const shortName = (name) => (/claude/i.test(name) && /gpt/i.test(name) ? "Claude" : name.replace(/\s+models?$/i, ""));
   const limits = [];
   for (const g of groups) {
     const isPrimary = g === primary;
