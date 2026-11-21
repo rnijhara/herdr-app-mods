@@ -2,19 +2,53 @@
 # Installs these mods, the herdr-plus layout, the Claude Code skills and the hc
 # worker templates, then switches Herdr to herdr-plus.
 # Never overwrites an existing file unless run with --force.
-#   ./install.sh           install what's missing
-#   ./install.sh --force   replace installed copies with this repo's
+#   ./install.sh                              install what's missing (auto-detects neon backend)
+#   ./install.sh --force                      replace installed copies with this repo's
+#   ./install.sh --neon=agy|opencode          choose the neon template backend explicitly
 set -eu
 
 HOME_DIR="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
 REPO="$(cd "$(dirname "$0")" && pwd)"
 LAYOUT=herdr-plus
 FORCE=0
-[ $# -le 1 ] || { echo "usage: $0 [--force]" >&2; exit 2; }
-case "${1:-}" in
-  "") ;;
-  --force) FORCE=1 ;;
-  *) echo "usage: $0 [--force]" >&2; exit 2 ;;
+NEON="${NEON_BACKEND:-auto}"
+
+usage() {
+  echo "usage: $0 [--force] [--neon=auto|agy|opencode]" >&2
+  exit 2
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) FORCE=1 ;;
+    --neon=*) NEON="${1#--neon=}" ;;
+    --neon)
+      [ $# -ge 2 ] || usage
+      shift
+      NEON="$1"
+      ;;
+    *) usage ;;
+  esac
+  shift
+done
+
+case "$NEON" in
+  auto)
+    if command -v agy >/dev/null 2>&1; then
+      NEON=agy
+      NEON_WHY="auto-detected agy"
+    else
+      NEON=opencode
+      NEON_WHY="agy not found; falling back to opencode"
+    fi
+    ;;
+  agy | opencode)
+    NEON_WHY="requested"
+    ;;
+  *)
+    echo "unknown --neon backend: $NEON (expected auto, agy, or opencode)" >&2
+    exit 2
+    ;;
 esac
 
 [ -d "$HOME_DIR/layouts" ] || { echo "Herdr app home not found at $HOME_DIR: open Herdr once first." >&2; exit 1; }
@@ -60,8 +94,14 @@ done
 
 TPL_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr-core/templates"
 mkdir -p "$TPL_DIR"
+echo "neon template: $NEON ($NEON_WHY)"
 for f in "$REPO"/hc-templates/*.md; do
-  put "$f" "$TPL_DIR/$(basename "$f")"
+  base=$(basename "$f")
+  if [ "$base" = "neon.md" ] && [ "$NEON" = "opencode" ]; then
+    put "$REPO/hc-templates/variants/neon-opencode.md" "$TPL_DIR/neon.md"
+  else
+    put "$f" "$TPL_DIR/$base"
+  fi
 done
 
 for dir in "$REPO"/mods/*/; do

@@ -12,8 +12,9 @@ mod also reads Linux machines added with `hc machine add`.
 
 ```sh
 git clone https://github.com/rnijhara/herdr-app-mods.git && cd herdr-app-mods
-./install.sh           # installs what's missing, then switches Herdr to herdr-plus
-./install.sh --force   # replaces installed copies with this repo's
+./install.sh                    # installs what's missing, auto-detects neon backend, switches Herdr to herdr-plus
+./install.sh --force            # replaces installed copies with this repo's
+./install.sh --neon=opencode    # force OpenCode + OpenRouter for neon (or --neon=agy)
 ```
 
 `install.sh` never overwrites a file you changed unless you pass `--force`, and it
@@ -31,6 +32,7 @@ first: Herdr docks a folder it sees without one into the shown layout).
 | `keep-awake` | Status-bar cup: keeps the Mac and its display awake with `caffeinate -di -w <Herdr pid>` in an hc terminal named `keep-awake`, so the hold ends when Herdr quits. |
 | `open-in` | Status-bar "Open in" split button: the left part opens the focused terminal's folder (the space's folder when no terminal has focus) in the default editor and shows its icon; the chevron lists the installed editors (Cursor, VS Code, VS Code Insiders, VSCodium, Zed, Trae, Kiro, Antigravity, JetBrains IDEs), then Finder, and the one you pick becomes the default. macOS only: an editor counts as installed when its command is on PATH or its CLI is inside its app in `/Applications` or `~/Applications`. Icons come from the installed apps, cached in the mod's hidden `.icons/`. Spaces on another machine are skipped. Keys in `keys.json` `global`: `"cmd-shift-e": "open-in.open"` (default editor), `open-in.menu` (the picker). |
 | `cite` | Quote-reply across agents. Hold ⇧⌘ and drag over any terminal's text: a popup takes an optional note and the quote joins a numbered list in the **Citations** panel beside Files and Changes. Click a quote to jump back to it; **Send to** pastes the list into an agent's input without pressing Enter. **⌘⇧'** pastes into the focused terminal (needs `"cmd-shift-'": "cite.paste"` in `keys.json` `global`). The modifier is read by `modstate.c`, built with `cc` on first start (no permissions needed). Relies on copy-on-select, Herdr's default. |
+| `templates` | Dialog to browse, create, edit and delete `hc` worker templates in `~/.config/herdr-core/templates/*.md`. Shows live-parsed frontmatter (`command`, `description`), copies an example `hc run` command, edits raw Markdown with syntax highlighting (`⌘S` to save, compare-and-swap against external edits), and watches the folder for changes. Opened from **Templates** in the sidebar footer or `mod.open templates`. |
 | `tab-namer` | Names unnamed tabs: the agent's title, else the program and folder. Tabs you name are left alone; renaming one to "" hands it back. For Antigravity CLI (`agy`), configure its `title` setting (below). |
 | `mod-patches` | Keeps patched copies of three of Herdr's own mods current (below). |
 
@@ -60,7 +62,7 @@ place can be left half-updated). Log: `~/.config/herdr-app/.mod-patches.log`.
 | Herdr mod | Copy | Patch |
 |---|---|---|
 | `workspace-status` | `workspace-status-synced` | No "⌘⇧P commands" hint (the cup sits there) |
-| `workspace-chrome` | `workspace-chrome-synced` | No "Add machine" row in the sidebar footer |
+| `workspace-chrome` | `workspace-chrome-synced` | **Templates** row instead of "Add machine" in the sidebar footer |
 | `tabs` | `tabs-synced` | A Citations button, with a count, for `cite` |
 
 The patches are `PATCHES` in `mods/mod-patches/main.js`. Change Herdr's mods only there.
@@ -84,7 +86,7 @@ Herdr's `main` layout plus:
 | `opus` | Claude Code, Opus 5.5 (1M context), high effort |
 | `astra` | Codex, GPT-6.2 Astra, high effort |
 | `sol` | Codex, GPT-6.2 Sol, high effort |
-| `neon` | OpenCode, Gemini 4 Neon through OpenRouter, xhigh effort |
+| `neon` | Antigravity CLI (`agy`), Gemini 4 Neon (xhigh effort); falls back to OpenCode + OpenRouter when `agy` isn't installed |
 
 A lead agent starts one with a task and keeps working:
 
@@ -99,8 +101,12 @@ so the lead never polls.
 - Codex runs with `--no-daemon`, as herdr-core requires. To let Codex report without
   a permission prompt, add `prefix_rule(pattern=["hc", "send"], decision="allow")` to
   `~/.codex/rules/default.rules`.
-- OpenCode's interactive UI has no `--model` flag, so `neon` sets the model with
-  `OPENCODE_CONFIG_CONTENT` and runs `--standalone`: without it the setting never
+- `neon` defaults to `agy --model gemini-4-neon-xhigh` (`hc-templates/neon.md`) when `agy`
+  is on `PATH`, and falls back to the OpenCode + OpenRouter variant
+  (`hc-templates/variants/neon-opencode.md`) when it isn't. Pass `--neon=opencode` or
+  `--neon=agy` (or set `NEON_BACKEND`) to `install.sh` to choose explicitly.
+  OpenCode's interactive UI has no `--model` flag, so the OpenCode variant sets the model
+  with `OPENCODE_CONFIG_CONTENT` and runs `--standalone`: without it the setting never
   reaches OpenCode's background service. It needs an OpenRouter sign-in in OpenCode
   and is billed per token.
 - A Claude Code worker shows a trust prompt the first time it opens a folder; hc

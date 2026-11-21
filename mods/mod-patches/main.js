@@ -17,10 +17,10 @@ const PATCHES = [
   {
     from: "workspace-chrome",
     to: "workspace-chrome-synced",
-    why: "no Add machine row in the sidebar footer (Settings > Machines still adds one)",
+    why: "Templates row in the sidebar footer instead of Add machine (Settings > Machines still adds one)",
     replace: [[
       `\n        .child(row("machine", "plus", "Add machine", true, () => run("mod.open", { name: "machine-add" })));`,
-      `;`,
+      `\n        .child(h_flex().id("templates").h(28).px(8).gap(9).items_center().rounded(8).when(collapsed, el => el.relative().w(32).px(0).justify_center().tooltip("Templates")).text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer().on_click(() => run("mod.open", { name: "templates" })).child(svg("mods/templates/templates.svg").size(14)).when(!collapsed, el => el.child("Templates")));`,
     ]],
   },
   {
